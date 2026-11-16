@@ -48,13 +48,20 @@ static void open_socket_library(void)
 int main(int argc, char *argv[])
 {
 	static char *local[] = { "Iceball", "-s", "0", "pkg/base", NULL };
+	BPTR old_dir;
+	int rc;
 
+	/* pkg/, clsave/ and svsave/ sit beside the program */
+	old_dir = CurrentDir(GetProgramDir());
 	open_socket_library();
 	if (argc <= 1 && !SocketBase) {
 		puts("Iceball: no TCP/IP stack running, so a local game on the base mod.");
-		return ib_iceball_main(4, local);
+		rc = ib_iceball_main(4, local);
+	} else {
+		rc = ib_iceball_main(argc, argv);
 	}
-	return ib_iceball_main(argc, argv);
+	CurrentDir(old_dir);
+	return rc;
 }
 
 /* ---- the socket calls ---- */
