@@ -1,0 +1,16 @@
+# Upstream sources for the GFOS build, fetched at build time (never kept here).
+PORT_VERSION=0.2.1-gfos1
+ICEBALL_URL=https://github.com/iamgreaser/iceball
+ICEBALL_COMMIT=e899051261257706a6ff86679210d133d5fc8253
+SACKIT_URL=https://github.com/iamgreaser/sackit
+SACKIT_COMMIT=dc29bbba97e5fb62be8ce8126cbc028726bfc7d8
+ENET_URL=https://github.com/lsalzman/enet
+ENET_COMMIT=2662c0de09e36f2a2030ccc2c528a3e4c9e8138a
+GFOPENLUA_URL=https://github.com/DalsinAI/gfopenlua
+GFOPENLUA_COMMIT=bff9afe708c8b252628c61ce4abe19f84c15e596
+# host tests only: Lua and zlib for the PC and m68k Linux builds
+LUA_URL=https://www.lua.org/ftp/lua-5.1.5.tar.gz
+LUA_MIRROR=http://archive.ubuntu.com/ubuntu/pool/main/l/lua5.1/lua5.1_5.1.5.orig.tar.gz
+LUA_SHA256=2640fc56a795f29d28ef15e13c34a47e223960b0240e8cb0a82d9b0738695333
+ZLIB_URL=https://github.com/madler/zlib
+ZLIB_COMMIT=51b7f2abdade71cd9bb0e7a373ef2610ec6f9daf

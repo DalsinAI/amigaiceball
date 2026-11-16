@@ -1,0 +1,679 @@
+diff --git a/include/common.h b/include/common.h
+index 17d057d..e10fec0 100644
+--- a/include/common.h
++++ b/include/common.h
+@@ -117,6 +117,8 @@ typedef unsigned __int64	uint64_t;
+ #include <math.h>
+ #include <assert.h>
+ 
++#include "ib_le.h"
++
+ #include <enet/enet.h>
+ 
+ #ifdef __cplusplus
+@@ -161,6 +163,10 @@ extern "C" {
+ #include <winsock2.h>
+ #include <ws2tcpip.h>
+ 
++#elif defined(__amigaos__)
++
++#include "ib_bsdsocket.h"
++
+ #else
+ 
+ #include <sys/types.h>
+diff --git a/src/gl/glad.c b/src/gl/glad.c
+index 12e5d02..a8762a8 100644
+--- a/src/gl/glad.c
++++ b/src/gl/glad.c
+@@ -49,6 +49,20 @@ void close_gl(void) {
+         libGL = NULL;
+     }
+ }
++#elif defined(__amigaos__)
++void *ib_gl_proc(const char *name);
++static void* libGL;
++
++static
++int open_gl(void) {
++    libGL = (void *)1;
++    return 1;
++}
++
++static
++void close_gl(void) {
++    libGL = NULL;
++}
+ #else
+ #include <dlfcn.h>
+ static void* libGL;
+@@ -100,6 +114,9 @@ void close_gl() {
+ 
+ static
+ void* get_proc(const char *namez) {
++#ifdef __amigaos__
++    return libGL == NULL ? NULL : ib_gl_proc(namez);
++#else
+     void* result = NULL;
+     if(libGL == NULL) return NULL;
+ 
+@@ -117,6 +134,7 @@ void* get_proc(const char *namez) {
+     }
+ 
+     return result;
++#endif
+ }
+ 
+ int gladLoadGL(void) {
+diff --git a/src/gl/render.c b/src/gl/render.c
+index 5f6c404..123c6ad 100644
+--- a/src/gl/render.c
++++ b/src/gl/render.c
+@@ -1429,14 +1429,14 @@ void render_cubemap(uint32_t *pixels, int width, int height, int pitch, camera_t
+ 				if(GLAD_GL_ARB_texture_storage) {
+ 					glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, iw, ih);
+ 				} else {
+-					glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, iw, ih, 0, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
++					glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, iw, ih, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
+ 				}
+ 			} else {
+ 			
+ 				glBindTexture(GL_TEXTURE_2D, img[i]->tex);
+ 			}
+ 
+-			glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, iw, ih, GL_BGRA, GL_UNSIGNED_BYTE, img[i]->pixels);
++			glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, iw, ih, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, img[i]->pixels);
+ 			img[i]->tex_dirty = 0;
+ 		} else {
+ 			glBindTexture(GL_TEXTURE_2D, img[i]->tex);
+@@ -1660,14 +1660,14 @@ void render_vertex_array(uint32_t *pixels, int width, int height, int pitch, cam
+ 				if(GLAD_GL_ARB_texture_storage) {
+ 					glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, iw, ih);
+ 				} else {
+-					glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, iw, ih, 0, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
++					glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, iw, ih, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
+ 				}
+ 			} else {
+ 			
+ 				glBindTexture(GL_TEXTURE_2D, img[i]->tex);
+ 			}
+ 
+-			glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, iw, ih, GL_BGRA, GL_UNSIGNED_BYTE, img[i]->pixels);
++			glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, iw, ih, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, img[i]->pixels);
+ 
+ 			img[i]->tex_dirty = 0;
+ 		} else {
+diff --git a/src/gl/render_img.c b/src/gl/render_img.c
+index 2d8379a..1370754 100644
+--- a/src/gl/render_img.c
++++ b/src/gl/render_img.c
+@@ -123,12 +123,12 @@ void render_blit_img(uint32_t *pixels, int width, int height, int pitch,
+ 			{
+ 				glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, iw, ih);
+ 			} else {
+-				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, iw, ih, 0, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
++				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, iw, ih, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
+ 			}
+ 		} else {
+ 			glBindTexture(GL_TEXTURE_2D, src->tex);
+ 		}
+-		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, iw, ih, GL_BGRA, GL_UNSIGNED_BYTE, src->pixels);
++		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, iw, ih, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, src->pixels);
+ 
+ 		src->tex_dirty = 0;
+ 	} else {
+diff --git a/src/img.c b/src/img.c
+index c6516eb..5a69b1e 100644
+--- a/src/img.c
++++ b/src/img.c
+@@ -97,13 +97,13 @@ img_t *img_parse_tga(int len, const char *data, lua_State *L)
+ 	memcpy(&head.idlen,   p +  0, 1);
+ 	memcpy(&head.cmtype,  p +  1, 1);
+ 	memcpy(&head.imgtype, p +  2, 1);
+-	memcpy(&head.cmoffs,  p +  3, 2);
+-	memcpy(&head.cmlen,   p +  5, 2);
++	head.cmoffs = ib_le16(p + 3);
++	head.cmlen = ib_le16(p + 5);
+ 	memcpy(&head.cmbpp,   p +  7, 1);
+-	memcpy(&head.xstart,  p +  8, 2);
+-	memcpy(&head.ystart,  p + 10, 2);
+-	memcpy(&head.width,   p + 12, 2);
+-	memcpy(&head.height,  p + 14, 2);
++	head.xstart = ib_le16(p + 8);
++	head.ystart = ib_le16(p + 10);
++	head.width = ib_le16(p + 12);
++	head.height = ib_le16(p + 14);
+ 	memcpy(&head.bpp,     p + 16, 1);
+ 	memcpy(&head.flags,   p + 17, 1);
+ 	p += 18;
+@@ -130,7 +130,7 @@ img_t *img_parse_tga(int len, const char *data, lua_State *L)
+ 		{
+ 			// TODO check what happens when the offset is different
+ 			uint32_t tmp_col = 0;
+-			memcpy(&tmp_col, p, tclen);
++			tmp_col = ib_len(p, tclen);
+ 			p += tclen;
+ 			palette[i] = img_convert_color_to_32(tmp_col, head.cmbpp);
+ 			//printf("%6i %08X\n", i, palette[i]);
+@@ -191,7 +191,7 @@ img_t *img_parse_tga(int len, const char *data, lua_State *L)
+ 				{
+ 					rle &= 0x7F;
+ 
+-					memcpy(&tmp_col, p, bplen);
++					tmp_col = ib_len(p, bplen);
+ 					p += bplen;
+ 
+ 					for(i = 0; i <= rle && x < head.width && p < dend; i++, x++)
+@@ -199,7 +199,7 @@ img_t *img_parse_tga(int len, const char *data, lua_State *L)
+ 				} else {
+ 					for(i = 0; i <= rle && x < head.width && p < dend; i++, x++)
+ 					{
+-						memcpy(&tmp_col, p, bplen);
++						tmp_col = ib_len(p, bplen);
+ 						p += bplen;
+ 
+ 						img->pixels[idx++] = tmp_col;
+@@ -211,7 +211,7 @@ img_t *img_parse_tga(int len, const char *data, lua_State *L)
+ 			uint32_t tmp_col;
+ 			for(x = 0; x < head.width && p < dend; x++)
+ 			{
+-				memcpy(&tmp_col, p, bplen);
++				tmp_col = ib_len(p, bplen);
+ 				p += bplen;
+ 				img->pixels[idx++] = tmp_col;
+ 			}
+diff --git a/src/lua_net.h b/src/lua_net.h
+index 16ffea9..66a47c0 100644
+--- a/src/lua_net.h
++++ b/src/lua_net.h
+@@ -160,7 +160,7 @@ int icelua_fn_common_net_pack(lua_State *L)
+ 				// ARM requires floats + doubles to be word-aligned
+ 			case 'f':
+ 				xfloat = lua_tonumber(L, p++);
+-				xint = *(int32_t *)(float *)&xfloat;
++				memcpy(&xint, &xfloat, 4);
+ 				*(s++) = xint & 0xFF;
+ 				*(s++) = (xint>>8) & 0xFF;
+ 				*(s++) = (xint>>16) & 0xFF;
+@@ -168,16 +168,8 @@ int icelua_fn_common_net_pack(lua_State *L)
+ 				break;
+ 			case 'd':
+ 				xdouble = lua_tonumber(L, p++);
+-				xint = ((int32_t *)(float *)&xdouble)[0];
+-				*(s++) = xint & 0xFF;
+-				*(s++) = (xint>>8) & 0xFF;
+-				*(s++) = (xint>>16) & 0xFF;
+-				*(s++) = (xint>>24) & 0xFF;
+-				xint = ((int32_t *)(float *)&xdouble)[1];
+-				*(s++) = xint & 0xFF;
+-				*(s++) = (xint>>8) & 0xFF;
+-				*(s++) = (xint>>16) & 0xFF;
+-				*(s++) = (xint>>24) & 0xFF;
++				ib_put_led(s, xdouble);
++				s += 8;
+ 				break;
+ 			case 's': {
+ 				size_t slen;
+@@ -308,7 +300,7 @@ int icelua_fn_common_net_pack_array(lua_State *L)
+ 				{
+ 					lua_rawgeti(L, 3, i + 1);
+ 					xfloat = lua_tonumber(L, -1);
+-					xint = *(int32_t *)(float *)&xfloat;
++					memcpy(&xint, &xfloat, 4);
+ 					*(s++) = xint & 0xFF;
+ 					*(s++) = (xint>>8) & 0xFF;
+ 					*(s++) = (xint>>16) & 0xFF;
+@@ -320,16 +312,8 @@ int icelua_fn_common_net_pack_array(lua_State *L)
+ 				{
+ 					lua_rawgeti(L, 3, i + 1);
+ 					xdouble = lua_tonumber(L, -1);
+-					xint = ((int32_t *)(float *)&xdouble)[0];
+-					*(s++) = xint & 0xFF;
+-					*(s++) = (xint>>8) & 0xFF;
+-					*(s++) = (xint>>16) & 0xFF;
+-					*(s++) = (xint>>24) & 0xFF;
+-					xint = ((int32_t *)(float *)&xdouble)[1];
+-					*(s++) = xint & 0xFF;
+-					*(s++) = (xint>>8) & 0xFF;
+-					*(s++) = (xint>>16) & 0xFF;
+-					*(s++) = (xint>>24) & 0xFF;
++					ib_put_led(s, xdouble);
++					s += 8;
+ 				}
+ 				break;
+ 			case 's': {
+@@ -419,39 +403,37 @@ int icelua_fn_common_net_unpack(lua_State *L)
+ 				p++;
+ 				break;
+ 			case 'h':
+-				xint = *(int16_t *)s;
++				xint = ib_les16(s);
+ 				s += 2;
+ 				lua_pushinteger(L, xint);
+ 				p++;
+ 				break;
+ 			case 'H':
+-				xint = *(uint16_t *)s;
++				xint = ib_le16(s);
+ 				s += 2;
+ 				lua_pushinteger(L, xint);
+ 				p++;
+ 				break;
+ 			case 'i':
+-				xint = *(int32_t *)s;
++				xint = (int32_t)ib_le32(s);
+ 				s += 4;
+ 				lua_pushinteger(L, xint);
+ 				p++;
+ 				break;
+ 			case 'I':
+-				xuint = *(uint32_t *)s;
++				xuint = ib_le32(s);
+ 				s += 4;
+ 				lua_pushnumber(L, (double)xuint);
+ 				p++;
+ 				break;
+ 			case 'f':
+-				xint = *(uint32_t *)s;
+-				xfloat = *(float *)&xint;
++				xfloat = ib_lef(s);
+ 				s += 4;
+ 				lua_pushnumber(L, xfloat);
+ 				p++;
+ 				break;
+ 			case 'd':
+-				xint = *(uint32_t *)s;
+-				xdouble = *(double *)&xint;
++				xdouble = ib_led(s);
+ 				s += 8;
+ 				lua_pushnumber(L, xdouble);
+ 				p++;
+@@ -532,7 +514,7 @@ int icelua_fn_common_net_unpack_array(lua_State *L)
+ 			case 'h':
+ 				for (i = 0; i < len; i++)
+ 				{
+-					xint = *(int16_t *)s;
++					xint = ib_les16(s);
+ 					s += 2;
+ 					lua_pushinteger(L, xint);
+ 					lua_rawseti(L, -2, i + 1);
+@@ -541,7 +523,7 @@ int icelua_fn_common_net_unpack_array(lua_State *L)
+ 			case 'H':
+ 				for (i = 0; i < len; i++)
+ 				{
+-					xint = *(uint16_t *)s;
++					xint = ib_le16(s);
+ 					s += 2;
+ 					lua_pushinteger(L, xint);
+ 					lua_rawseti(L, -2, i + 1);
+@@ -550,7 +532,7 @@ int icelua_fn_common_net_unpack_array(lua_State *L)
+ 			case 'i':
+ 				for (i = 0; i < len; i++)
+ 				{
+-					xint = *(int32_t *)s;
++					xint = (int32_t)ib_le32(s);
+ 					s += 4;
+ 					lua_pushinteger(L, xint);
+ 					lua_rawseti(L, -2, i + 1);
+@@ -559,7 +541,7 @@ int icelua_fn_common_net_unpack_array(lua_State *L)
+ 			case 'I':
+ 				for (i = 0; i < len; i++)
+ 				{
+-					xuint = *(uint32_t *)s;
++					xuint = ib_le32(s);
+ 					s += 4;
+ 					lua_pushnumber(L, (double)xuint);
+ 					lua_rawseti(L, -2, i + 1);
+@@ -568,8 +550,7 @@ int icelua_fn_common_net_unpack_array(lua_State *L)
+ 			case 'f':
+ 				for (i = 0; i < len; i++)
+ 				{
+-					xint = *(uint32_t *)s;
+-					xfloat = *(float *)&xint;
++					xfloat = ib_lef(s);
+ 					s += 4;
+ 					lua_pushnumber(L, xfloat);
+ 					lua_rawseti(L, -2, i + 1);
+@@ -578,8 +559,7 @@ int icelua_fn_common_net_unpack_array(lua_State *L)
+ 			case 'd':
+ 				for (i = 0; i < len; i++)
+ 				{
+-					xint = *(uint32_t *)s;
+-					xdouble = *(double *)&xint;
++					xdouble = ib_led(s);
+ 					s += 8;
+ 					lua_pushnumber(L, xdouble);
+ 					lua_rawseti(L, -2, i + 1);
+diff --git a/src/lua_tcp.h b/src/lua_tcp.h
+index d72e857..5822edf 100644
+--- a/src/lua_tcp.h
++++ b/src/lua_tcp.h
+@@ -24,7 +24,7 @@ int whitelist_validate(const char *name, int port);
+ int icelua_fn_common_tcp_connect(lua_State *L) {
+ 	int top = icelua_assert_stack(L, 2, 2);
+ 	
+-	struct addrinfo hints, *res;
++	struct addrinfo hints, *res = NULL;
+ 	int ret, sockfd;
+ 	const char *host;
+ 	char port_ch[18];
+@@ -52,10 +52,7 @@ int icelua_fn_common_tcp_connect(lua_State *L) {
+ 	snprintf(port_ch, 17, "%u", port);
+ 
+ 	if(getaddrinfo(host, port_ch, &hints, &res) != 0)
+-	{
+-		if(res != NULL) freeaddrinfo(res);
+ 		return 0;
+-	}
+ 	sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+ 
+ 	ret = connect(sockfd, res->ai_addr, res->ai_addrlen);
+diff --git a/src/main.c b/src/main.c
+index 1b133b1..1dbf641 100644
+--- a/src/main.c
++++ b/src/main.c
+@@ -99,7 +99,7 @@ int platform_init(void)
+ 	if(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_NOPARACHUTE))
+ 		return error_sdl("SDL_Init");
+ 
+-#ifndef WIN32
++#if !defined(WIN32) && defined(SIGPIPE)
+ 	signal(SIGPIPE, SIG_IGN);
+ 	signal(SIGINT, SIG_DFL);
+ #endif
+@@ -191,7 +191,11 @@ int video_init(void)
+ 	else
+ 		SDL_GL_SetSwapInterval(0);
+ 
++#ifdef __amigaos__
++	int err_glad = gladLoadGL();
++#else
+ 	int err_glad = gladLoadGLLoader(SDL_GL_GetProcAddress);
++#endif
+ 	if(!err_glad)
+ 	{
+ 		fprintf(stderr, "Glad failed to init\n");
+diff --git a/src/map.c b/src/map.c
+index c4e98c0..ef6e582 100644
+--- a/src/map.c
++++ b/src/map.c
+@@ -219,7 +219,7 @@ map_t *map_parse_icemap(int len, const char *data)
+ 				map_free(map);
+ 				return NULL;
+ 			}
+-			taglen = (int)*(uint32_t *)p;
++			taglen = (int)ib_le32(p);
+ 			p += 4;
+ 		}
+ 		
+@@ -240,9 +240,9 @@ map_t *map_parse_icemap(int len, const char *data)
+ 				return NULL;
+ 			}
+ 
+-			int xlen = ((uint16_t *)p)[0];
+-			int ylen = ((uint16_t *)p)[1];
+-			int zlen = ((uint16_t *)p)[2];
++			int xlen = ib_le16(p);
++			int ylen = ib_le16(p+2);
++			int zlen = ib_le16(p+4);
+ 			p += 6;
+ 
+ 			if (!map_parse_root(map, p+taglen, p, xlen, ylen, zlen, 0))
+@@ -377,10 +377,10 @@ char *map_serialise_icemap(map_t *map, int *len)
+ 	// Header and MapData chunk
+ 	memcpy(buf, "IceMap\x1A\x01MapData\xFF", 16);
+ 
+-	*(uint32_t *)&buf[16] = 6+maplen;
+-	*(uint16_t *)&buf[20] = map->xlen;
+-	*(uint16_t *)&buf[22] = map->ylen;
+-	*(uint16_t *)&buf[24] = map->zlen;
++	ib_put_le32(&buf[16], 6+maplen);
++	ib_put_le16(&buf[20], map->xlen);
++	ib_put_le16(&buf[22], map->ylen);
++	ib_put_le16(&buf[24], map->zlen);
+ 	char *zf = &buf[26];
+ 
+ 	for(z = 0, pi = 0; z < map->zlen; z++)
+@@ -415,7 +415,7 @@ char *map_serialise_icemap(map_t *map, int *len)
+ 			zf += 8;
+ 		} else {
+ 			zf[7] = (char)'\xFF';
+-			*(uint32_t *)&zf[8] = (uint32_t)map->entities_size;
++			ib_put_le32(&zf[8], (uint32_t)map->entities_size);
+ 			zf += 12;
+ 		}
+ 		memcpy(zf, map->entities, map->entities_size);
+diff --git a/src/model.c b/src/model.c
+index 39756c5..24f3e84 100644
+--- a/src/model.c
++++ b/src/model.c
+@@ -139,7 +139,7 @@ model_t *model_parse_pmf(int len, const char *data)
+ 	p += 8;
+ 	
+ 	// then there's a uint32_t denoting how many body parts there are
+-	uint32_t bone_count = *(uint32_t *)p;
++	uint32_t bone_count = ib_le32(p);
+ 	p += 4;
+ 	if(bone_count > MODEL_BONE_MAX)
+ 	{
+@@ -171,7 +171,7 @@ model_t *model_parse_pmf(int len, const char *data)
+ 		}
+ 		
+ 		// then there's a uint32_t denoting how many points there are in this body part
+-		uint32_t pt_count = *(uint32_t *)p;
++		uint32_t pt_count = ib_le32(p);
+ 		p += 4;
+ 		
+ 		// (just allocating the bone here)
+@@ -191,6 +191,14 @@ model_t *model_parse_pmf(int len, const char *data)
+ 		//   uint8_t b,g,r,reserved;
+ 		int bonelen = sizeof(model_point_t)*pt_count;
+ 		memcpy(bone->pts, p, bonelen);
++		for(j = 0; j < (int)pt_count; j++)
++		{
++			const char *q = p + j*sizeof(model_point_t);
++			bone->pts[j].radius = ib_le16(q);
++			bone->pts[j].x = ib_les16(q+2);
++			bone->pts[j].y = ib_les16(q+4);
++			bone->pts[j].z = ib_les16(q+6);
++		}
+ 		p += bonelen;
+ 		bone->ptlen = pt_count;
+ 		
+@@ -227,7 +235,7 @@ model_t *model_load_pmf(const char *fname)
+ 
+ int model_save_pmf(model_t *pmf, const char *fname)
+ {
+-	int i;
++	int i, j;
+ 	
+ 	FILE *fp = fopen(fname, "wb");
+ 	
+@@ -242,7 +250,9 @@ int model_save_pmf(model_t *pmf, const char *fname)
+ 	
+ 	// then there's a uint32_t denoting how many body parts there are
+ 	uint32_t bone_count = pmf->bonelen;
+-	fwrite(&bone_count, 4, 1, fp);
++	char le[4];
++	ib_put_le32(le, bone_count);
++	fwrite(le, 4, 1, fp);
+ 	
+ 	// then, for each body part,
+ 	for(i = 0; i < (int)bone_count; i++)
+@@ -252,13 +262,24 @@ int model_save_pmf(model_t *pmf, const char *fname)
+ 		
+ 		// then there's a uint32_t denoting how many points there are in this body part
+ 		uint32_t pt_count = pmf->bones[i]->ptlen;
+-		fwrite(&pt_count, 4, 1, fp);
++		ib_put_le32(le, pt_count);
++		fwrite(le, 4, 1, fp);
+ 		
+ 		// then there's a whole bunch of this:
+ 		//   uint16_t radius;
+ 		//   int16_t x,y,z;
+ 		//   uint8_t b,g,r,reserved;
+-		fwrite(pmf->bones[i]->pts, sizeof(model_point_t), pt_count, fp);
++		for(j = 0; j < (int)pt_count; j++)
++		{
++			const model_point_t *pt = &pmf->bones[i]->pts[j];
++			char q[sizeof(model_point_t)];
++			memcpy(q, pt, sizeof(model_point_t));
++			ib_put_le16(q, pt->radius);
++			ib_put_le16(q+2, (uint16_t)pt->x);
++			ib_put_le16(q+4, (uint16_t)pt->y);
++			ib_put_le16(q+6, (uint16_t)pt->z);
++			fwrite(q, sizeof(model_point_t), 1, fp);
++		}
+ 		
+ 		// rinse, lather, repeat
+ 		
+diff --git a/src/network.c b/src/network.c
+index 1f3b5e7..3cc55cf 100644
+--- a/src/network.c
++++ b/src/network.c
+@@ -688,8 +688,8 @@ int net_eat_c2s_packet(client_t *cli, client_t *other, int neth, int len, const
+ 				{
+ 					char buf[9];
+ 					buf[0] = 0x31;
+-					*(uint32_t *)&buf[1] = other->sfetch_clen;
+-					*(uint32_t *)&buf[5] = other->sfetch_ulen;
++					ib_put_le32(&buf[1], other->sfetch_clen);
++					ib_put_le32(&buf[5], other->sfetch_ulen);
+ 					
+ 					net_packet_push(9, buf, neth,
+ 						&(cli->send_head), &(cli->send_tail));
+@@ -704,8 +704,8 @@ int net_eat_c2s_packet(client_t *cli, client_t *other, int neth, int len, const
+ 						int plen = other->sfetch_clen - i;
+ 						if(plen > 1024)
+ 							plen = 1024;
+-						*(uint32_t *)&buf[1] = (uint32_t)i;
+-						*(uint16_t *)&buf[5] = (uint16_t)plen;
++						ib_put_le32(&buf[1], (uint32_t)i);
++						ib_put_le16(&buf[5], (uint16_t)plen);
+ 						
+ 						memcpy(&buf[7], &(other->sfetch_cbuf[i]), plen);
+ 						
+@@ -804,8 +804,8 @@ int net_eat_s2c_packet(client_t *cli, client_t *other, int neth, int len, const
+ 		case 0x31: {
+ 			// 0x31 clen.u32 ulen.u32:
+ 			// file transfer initiation
+-			int clen = (int)*(uint32_t *)&(data[1]);
+-			int ulen = (int)*(uint32_t *)&(data[5]);
++			int clen = (int)ib_le32(&data[1]);
++			int ulen = (int)ib_le32(&data[5]);
+ 			//printf("clen=%i ulen=%i\n", clen, ulen);
+ 			cli->cfetch_clen = clen;
+ 			cli->cfetch_ulen = ulen;
+@@ -845,8 +845,8 @@ int net_eat_s2c_packet(client_t *cli, client_t *other, int neth, int len, const
+ 		case 0x33: {
+ 			// 0x33: offset.u32 len.u16 data[len]:
+ 			// file transfer data
+-			int offs = (int)*(uint32_t *)&(data[1]);
+-			int plen = (int)*(uint16_t *)&(data[5]);
++			int offs = (int)ib_le32(&data[1]);
++			int plen = (int)ib_le16(&data[5]);
+ 			//printf("pdata %08X: %i bytes\n", offs, plen);
+ 			if(plen <= 0 || plen > 1024)
+ 			{
+@@ -912,7 +912,7 @@ int net_flush_parse_onepkt(const char *data, int len)
+ 		if(len < 4)
+ 			return 0;
+ 		
+-		ilen = (int)*(uint16_t *)&data[1];
++		ilen = (int)ib_le16(&data[1]);
+ 		ilen += 3;
+ 	} else switch(cmd) {
+ 		case 0x0F: // baselen base[baselen] 0x00:
+@@ -940,7 +940,7 @@ int net_flush_parse_onepkt(const char *data, int len)
+ 			if(len < 7)
+ 				return 0;
+ 			
+-			ilen = (int)*(uint16_t *)&data[5];
++			ilen = (int)ib_le16(&data[5]);
+ 			ilen += 7;
+ 		} break;
+ 		case 0x32:
+diff --git a/src/png.c b/src/png.c
+index 1631b09..97ee529 100644
+--- a/src/png.c
++++ b/src/png.c
+@@ -32,16 +32,8 @@ void expandtex_gl(int *iw, int *ih);
+ // TODO: detect CPU endianness
+ void eswapbe32(void *pin)
+ {
+-	uint8_t *p = pin;
+-	uint8_t t;
+-
+-	t = p[1];
+-	p[1] = p[2];
+-	p[2] = t;
+-
+-	t = p[0];
+-	p[0] = p[3];
+-	p[3] = t;
++	uint32_t v = ib_be32(pin);
++	memcpy(pin, &v, 4);
+ }
+ 
+ int png_check_chunk(int len, const char *data, int *rclen)
+@@ -498,6 +490,10 @@ img_t *img_parse_png(int len, const char *data, lua_State *L)
+ 		}
+ 	}
+ 
++	// the rows above are B, G, R, A bytes: make them pixel values
++	for(y = 0; y < iw*ih; y++)
++		img->pixels[y] = ib_get_bgra((uint8_t *)&img->pixels[y]);
++
+ 	if(ubuf != NULL)
+ 		free(ubuf);
+ 	return img;
+diff --git a/src/wav.c b/src/wav.c
+index e4d0c60..1c71bd3 100644
+--- a/src/wav.c
++++ b/src/wav.c
+@@ -352,8 +352,8 @@ wav_t *wav_parse(char *buf, int len)
+ 		return NULL;
+ 	}
+ 
+-	uint32_t rifflen = *(uint32_t *)(buf+4);
+-	uint32_t fmtlen = *(uint32_t *)(buf+16);
++	uint32_t rifflen = ib_le32(buf+4);
++	uint32_t fmtlen = ib_le32(buf+16);
+ 
+ 	if(fmtlen < 16)
+ 	{
+@@ -369,6 +369,12 @@ wav_t *wav_parse(char *buf, int len)
+ 
+ 	wavfmt_t fmt;
+ 	memcpy(&fmt, buf+20, 16);
++	fmt.codec = ib_le16(buf+20);
++	fmt.chns = ib_le16(buf+22);
++	fmt.freq = ib_le32(buf+24);
++	fmt.bytes_sec = ib_le32(buf+28);
++	fmt.blkalign = ib_le16(buf+32);
++	fmt.bps = ib_le16(buf+34);
+ 
+ 	/*
+ 	from here: http://www.sonicspot.com/guide/wavefiles.html
+@@ -440,11 +446,11 @@ wav_t *wav_parse(char *buf, int len)
+ 
+ 		// Skip unwanted chunk
+ 		printf("wav_parse: skipping \"%.4s\" chunk\n", next_chunk);
+-		last_chunk_len = (*(uint32_t *)(next_chunk + 4)) + 8;
++		last_chunk_len = ib_le32(next_chunk + 4) + 8;
+ 		next_chunk += last_chunk_len;
+ 	}
+ 
+-	uint32_t datalen = *(uint32_t *)(next_chunk + 4);
++	uint32_t datalen = ib_le32(next_chunk + 4);
+ 	void *data_void = next_chunk + 8;
+ 	char *data_char = (char *)data_void;
+ 	if(data_char + datalen > end || data_char + datalen < buf)
+@@ -538,6 +544,7 @@ wav_t *wav_parse(char *buf, int len)
+ 		}
+ 
+ 		memcpy(wav->data, data_void, size);
++		ib_le16_samples(wav->data, datalen_smps);
+ 	} else {
+ 		fprintf(stderr, "wav_parse: Unknown codec/bps\n");
+ 		free(wav);

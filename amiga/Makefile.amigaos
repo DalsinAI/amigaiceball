@@ -1,0 +1,136 @@
+# Iceball for GFOS (AmigaOS 3.2 with GFOpenUp), 68040/68060 + FPU, on
+# GFOpenUp's SDL 2 and OpenGL (LIBS:GFOpenGPU/SDL2.module; GL through
+# GFOpenGPU), Lua 5.1 from lua51.library (GFOpenLua), zlib from z.library
+# (GFOpenZlib), sockets from bsdsocket.library when a stack is running.
+#
+#   make -f amiga/Makefile.amigaos -j4 IB=... SACKIT=... ENET=... GFL=... GFLOUT=... [STOVE=...]
+#
+# IB, SACKIT and ENET are upstream Iceball, sackit and ENet at the commits
+# package/iceball.lock names, with amiga/patches applied; GFL is GFOpenLua
+# at its locked commit and GFLOUT that one's build (lua51.library, headers).
+# package/build-amiga.sh fetches and builds them.
+#
+# Output: build/amigaos/Iceball/ (the drawer: Iceball, pkg/, clsave/,
+# svsave/, Libs/lua51.library, ReadMe, Controls, the licences, with icons),
+# build/amigaos/Iceball.info and Install-Iceball beside them.
+
+IB      ?= ../iceball
+SACKIT  ?= ../sackit
+ENET    ?= ../enet
+GFL     ?= ../gfopenlua
+GFLOUT  ?= $(GFL)/build-amiga
+STOVE   ?= $(HOME)/AmiCradle/stoves/os32-gcc16-open6
+PREFIX  ?= $(STOVE)/prefix
+SDL2KIT ?= $(PREFIX)/m68k-amigaos
+CC      = $(PREFIX)/bin/m68k-amigaos-gcc
+NM      = $(PREFIX)/bin/m68k-amigaos-nm
+STRIP   = $(PREFIX)/bin/m68k-amigaos-strip
+# hard float: GFOpenGPU's SDL 2 kit and libGL are built -m68881
+CPU     ?= -m68040 -m68881
+# -fno-tree-loop-distribute-patterns: GCC 16's loop miscompile
+OPT     ?= -O2 -fomit-frame-pointer -fno-tree-loop-distribute-patterns -fno-math-errno -fno-strict-aliasing
+
+# amiga/ first: its zlib.h stands in for zlib's
+INC     = -Iamiga -Iamiga/sdk -I$(IB)/include -I$(SACKIT) -I$(ENET)/include -I$(GFLOUT)/include \
+          -I$(SDL2KIT)/include/SDL2 -I$(SDL2KIT)/include
+CFLAGS  = -noixemul $(OPT) $(CPU) -std=gnu99 -w -D__amigaos__ $(INC)
+LDFLAGS = -noixemul $(CPU)
+LIBS    = -L$(SDL2KIT)/lib -lSDL2 -lGL -lm -lpthread
+
+BUILD   = build/amigaos
+OBJDIR  = $(BUILD)/obj
+OUT     = $(BUILD)/Iceball
+PROG    = Iceball
+
+IB_SRC  = main vecmath dsp map model img gl/render gl/render_img gl/glad png lua network \
+          path json random wav external/bit
+SK_SRC  = objects playroutine playroutine_effects playroutine_nna effects fixedmath tables mixer
+EN_SRC  = callbacks compress host list packet peer protocol unix
+AM_SRC  = ib_amiga ib_zlib
+
+OBJS    = $(addprefix $(OBJDIR)/ib/,$(addsuffix .o,$(IB_SRC))) \
+          $(addprefix $(OBJDIR)/sackit/,$(addsuffix .o,$(SK_SRC))) \
+          $(addprefix $(OBJDIR)/enet/,$(addsuffix .o,$(EN_SRC))) \
+          $(addprefix $(OBJDIR)/amiga/,$(addsuffix .o,$(AM_SRC))) \
+          $(OBJDIR)/gen/ib_gl_procs.o $(OBJDIR)/gen/lua51_calls_fpu.o $(OBJDIR)/gen/lua51_stub.o
+
+all: $(OUT)/$(PROG) package
+
+$(BUILD)/$(PROG).debug: $(OBJS)
+	@mkdir -p $(BUILD)
+	$(CC) $(LDFLAGS) -o $@ $(OBJS) $(LIBS)
+
+$(OUT)/$(PROG): $(BUILD)/$(PROG).debug
+	@mkdir -p $(OUT)
+	$(STRIP) -o $@ $<
+
+# Iceball: src/main.c's main becomes ib_iceball_main (amiga/ib_amiga.c starts it)
+$(OBJDIR)/ib/main.o: $(IB)/src/main.c amiga/ib_bsdsocket.h amiga/ib_le.h amiga/zlib.h
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -Dmain=ib_iceball_main -c -o $@ $<
+
+$(OBJDIR)/ib/%.o: $(IB)/src/%.c amiga/ib_bsdsocket.h amiga/ib_le.h amiga/zlib.h
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(OBJDIR)/sackit/%.o: $(SACKIT)/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+# ENet's Unix layer on bsdsocket.library through our calls
+$(OBJDIR)/enet/%.o: $(ENET)/%.c amiga/ib_bsdsocket.h
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -include amiga/ib_bsdsocket.h -c -o $@ $<
+
+$(OBJDIR)/amiga/%.o: amiga/%.c amiga/ib_bsdsocket.h amiga/ib_net_names.h amiga/zlib.h
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+# the GL calls glad asks for, by name, from GFOpenGPU's libGL
+$(OBJDIR)/gen/ib_gl_procs.c: $(IB)/src/gl/glad.c amiga/gen_gl_procs.py
+	@mkdir -p $(dir $@)
+	$(NM) $(SDL2KIT)/lib/libGL.a > $(OBJDIR)/gen/libGL.nm
+	python3 amiga/gen_gl_procs.py $< $(OBJDIR)/gen/libGL.nm $@
+
+# GFOpenLua's link stub, with its lua_Number calls made right for hard float
+$(OBJDIR)/gen/lua51_calls_fpu.c: $(GFL)/stub/lua51_calls.c amiga/lua_fpu_stub.py
+	@mkdir -p $(dir $@)
+	python3 amiga/lua_fpu_stub.py $< $@
+
+$(OBJDIR)/gen/lua51_calls_fpu.o: $(OBJDIR)/gen/lua51_calls_fpu.c
+	$(CC) $(CFLAGS) -I$(GFL)/src -c -o $@ $<
+
+$(OBJDIR)/gen/lua51_stub.o: $(GFL)/stub/lua51_stub.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -I$(GFL)/src -c -o $@ $<
+
+$(OBJDIR)/gen/ib_gl_procs.o: $(OBJDIR)/gen/ib_gl_procs.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+DOCS    = AMIGA_PORT.md amiga/Licences.txt amiga/Controls
+
+package: $(OUT)/$(PROG) $(DOCS) amiga/config.json
+	rm -rf $(OUT)/pkg $(OUT)/clsave $(OUT)/svsave $(OUT)/docs $(OUT)/Libs
+	cp -R $(IB)/pkg $(IB)/clsave $(IB)/svsave $(IB)/docs $(OUT)/
+	rm -rf $(OUT)/pkg/ibtest
+	cp amiga/config.json $(OUT)/clsave/config.json
+	mkdir -p $(OUT)/Libs $(OUT)/clsave/vol/screenshots $(OUT)/svsave/vol
+	cp $(GFLOUT)/lib/lua51.library $(OUT)/Libs/
+	cp amiga/Controls $(OUT)/Controls
+	cp AMIGA_PORT.md $(OUT)/ReadMe
+	cp $(IB)/LICENCE-GPLv3.txt $(IB)/LICENCE-LGPLv3.txt $(IB)/LICENCE-LGPLv2.1.txt $(IB)/LICENCE-others.txt \
+	    $(IB)/CREDITS.txt $(OUT)/
+	cp $(IB)/README.md $(OUT)/README-Iceball.txt
+	cp $(ENET)/LICENSE $(OUT)/LICENCE-ENet.txt
+	cp amiga/Licences.txt $(OUT)/Licences.txt
+	cp amiga/icons/Iceball.info amiga/icons/ReadMe.info $(OUT)/
+	for f in Controls Licences.txt README-Iceball.txt CREDITS.txt LICENCE-GPLv3.txt LICENCE-LGPLv3.txt \
+	    LICENCE-LGPLv2.1.txt LICENCE-others.txt LICENCE-ENet.txt; do cp amiga/icons/ReadMe.info $(OUT)/$$f.info; done
+	for d in pkg clsave svsave docs Libs; do cp amiga/icons/Data.info $(OUT)/$$d.info; done
+	cp amiga/icons/Iceball-drawer.info $(BUILD)/Iceball.info
+	cp amiga/Install-Iceball amiga/Install-Iceball.info $(BUILD)/
+
+clean:
+	rm -rf $(BUILD)
+
+.PHONY: all package clean
