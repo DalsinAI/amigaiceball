@@ -1,0 +1,36 @@
+Iceball: licences
+=================
+
+The game: Iceball, Copyright (C) 2012-2015 the Iceball contributors
+(https://github.com/iamgreaser/iceball), as upstream lists them:
+
+- Iceball, the program, is under the GNU General Public License version 3
+  (LICENCE-GPLv3.txt).
+- Ice Lua Components (pkg/iceball, the Lua code the mods share) is under
+  the GNU Lesser General Public License version 3 (LICENCE-LGPLv3.txt);
+  the parts taken from libSDL are under the LGPL version 2.1
+  (LICENCE-LGPLv2.1.txt).
+- The "Team Sparkle" files, the launcher among them, are under the MIT
+  licence.
+- All the game's assets (maps, models, pictures, sounds, music) are under
+  Creative Commons Attribution-ShareAlike 3.0
+  (http://creativecommons.org/licenses/by-sa/3.0/). CREDITS.txt names the
+  people.
+- Lua BitOp (src/external) is Mike Pall's, under the MIT licence
+  (LICENCE-others.txt).
+- sackit, the .it music player, is Ben Russell's (GreaseMonkey), in the
+  public domain (https://github.com/iamgreaser/sackit).
+- ENet, the network layer, is Lee Salzman's, under the MIT licence
+  (LICENCE-ENet.txt).
+- lua51.library (Libs/) is GFOpenLua, The AmiCradle Team's shared Lua 5.1
+  (Lua is MIT, PUC-Rio), https://github.com/DalsinAI/gfopenlua.
+- SDL 2 and OpenGL are GFOpenUp's (LIBS:GFOpenGPU/); z.library is
+  GFOpenZlib.
+- The Amiga port's own files (amiga/, AMIGA_PORT.md, package/, tests/) are
+  under the GNU General Public License version 3 or later, like Iceball;
+  tools/ and package/write-part.sh are under the MIT licence; the GlowIcon
+  art is The AmiCradle Team's own. The source of all of it is at
+  https://github.com/DalsinAI/amigaiceball.
+
+The game's data is upstream's own, unchanged. Only clsave/config.json is
+ours: upstream's with smaller settings for the Amiga.

@@ -41,6 +41,13 @@ extern struct Library *SocketBase;
 extern const struct in6_addr ib_in6addr_any;
 #define in6addr_any ib_in6addr_any
 
+/* the stack's headers have no sockaddr_storage: BSD's layout */
+struct sockaddr_storage {
+	unsigned char ss_len;
+	unsigned char ss_family;
+	char ss_pad[126];
+};
+
 /* getaddrinfo, IPv4 only, on gethostbyname */
 #ifndef AI_PASSIVE
 #define AI_PASSIVE 1
