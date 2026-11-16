@@ -264,7 +264,7 @@ const char *ib_inet_ntop(int af, const void *src, char *dst, socklen_t size)
 	return dst;
 }
 
-const struct ib_in6_addr ib_in6addr_any;
+const struct in6_addr ib_in6addr_any;
 
 int ib_getaddrinfo(const char *host, const char *port, const struct addrinfo *hints, struct addrinfo **res)
 {

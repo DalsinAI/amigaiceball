@@ -12,6 +12,8 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/time.h>
+#include <sys/ioctl.h>
+#include <sys/filio.h>
 
 #include <exec/types.h>
 #include <sys/socket.h>
@@ -28,28 +30,16 @@ extern struct Library *SocketBase;
  * not open. close() and fcntl() here are for sockets only, as in Iceball and
  * ENet. */
 
-/* no IPv6: the IPv6 socket Iceball also opens just fails */
+/* no IPv6: the IPv6 socket Iceball also opens just fails (the stack's
+ * headers have the IPv6 types, the library no IPv6) */
 #ifndef AF_INET6
 #define AF_INET6 10
 #endif
-struct ib_in6_addr { unsigned char s6_addr[16]; };
-struct sockaddr_in6 {
-	unsigned char sin6_len;
-	unsigned char sin6_family;
-	unsigned short sin6_port;
-	unsigned long sin6_flowinfo;
-	struct ib_in6_addr sin6_addr;
-	unsigned long sin6_scope_id;
-};
-#define in6_addr ib_in6_addr
-extern const struct ib_in6_addr ib_in6addr_any;
+#ifdef in6addr_any
+#undef in6addr_any
+#endif
+extern const struct in6_addr ib_in6addr_any;
 #define in6addr_any ib_in6addr_any
-
-struct sockaddr_storage {
-	unsigned char ss_len;
-	unsigned char ss_family;
-	char ss_pad[126];
-};
 
 /* getaddrinfo, IPv4 only, on gethostbyname */
 #ifndef AI_PASSIVE
@@ -64,16 +54,6 @@ struct sockaddr_storage {
 #ifndef EAI_MEMORY
 #define EAI_MEMORY 6
 #endif
-struct addrinfo {
-	int ai_flags;
-	int ai_family;
-	int ai_socktype;
-	int ai_protocol;
-	socklen_t ai_addrlen;
-	struct sockaddr *ai_addr;
-	char *ai_canonname;
-	struct addrinfo *ai_next;
-};
 #ifndef IB_AMIGA_C
 /* the stack's inline calls give way to ours */
 #undef socket

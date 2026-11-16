@@ -33,7 +33,10 @@ OPT     ?= -O2 -fomit-frame-pointer -fno-tree-loop-distribute-patterns -fno-math
 # amiga/ first: its zlib.h stands in for zlib's
 INC     = -Iamiga -Iamiga/sdk -I$(IB)/include -I$(SACKIT) -I$(ENET)/include -I$(GFLOUT)/include \
           -I$(SDL2KIT)/include/SDL2 -I$(SDL2KIT)/include
-CFLAGS  = -noixemul $(OPT) $(CPU) -std=gnu99 -w -D__amigaos__ $(INC)
+# upstream's C is older than GCC 16's stricter defaults: its pointer
+# mismatches (GL debug callback, socket lengths) stay warnings
+CFLAGS  = -noixemul $(OPT) $(CPU) -std=gnu99 -w -D__amigaos__ \
+          -Wno-error=incompatible-pointer-types -Wno-error=int-conversion $(INC)
 LDFLAGS = -noixemul $(CPU)
 LIBS    = -L$(SDL2KIT)/lib -lSDL2 -lGL -lm -lpthread
 
@@ -80,7 +83,7 @@ $(OBJDIR)/sackit/%.o: $(SACKIT)/%.c
 # ENet's Unix layer on bsdsocket.library through our calls
 $(OBJDIR)/enet/%.o: $(ENET)/%.c amiga/ib_bsdsocket.h
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -include amiga/ib_bsdsocket.h -c -o $@ $<
+	$(CC) $(CFLAGS) -DHAS_SOCKLEN_T -include amiga/ib_bsdsocket.h -c -o $@ $<
 
 $(OBJDIR)/amiga/%.o: amiga/%.c amiga/ib_bsdsocket.h amiga/ib_net_names.h amiga/zlib.h
 	@mkdir -p $(dir $@)
