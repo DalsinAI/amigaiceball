@@ -1,0 +1,106 @@
+diff --git a/objects.c b/objects.c
+index ce70272..81fc72f 100644
+--- a/objects.c
++++ b/objects.c
+@@ -147,6 +147,21 @@ it_module_t *sackit_module_load_memory(const void *data, const long length)
+ 	return module;
+ }
+ 
++
++/* IT files are little-endian: fields read whole into the structs below are
++   put into the host's order (nothing to do on a little-endian host). */
++static uint16_t sackit_le16(uint16_t v)
++{
++	const uint8_t *b = (const uint8_t *)&v;
++	return (uint16_t)(b[0] | (b[1] << 8));
++}
++
++static uint32_t sackit_le32(uint32_t v)
++{
++	const uint8_t *b = (const uint8_t *)&v;
++	return (uint32_t)b[0] | ((uint32_t)b[1] << 8) | ((uint32_t)b[2] << 16) | ((uint32_t)b[3] << 24);
++}
++
+ it_module_t *sackit_module_load_offs_internal(sackit_reader_t *reader, int fboffs)
+ {
+ 	int i, j, k;
+@@ -163,6 +178,22 @@ it_module_t *sackit_module_load_offs_internal(sackit_reader_t *reader, int fboff
+ 		return NULL;
+ 	}
+ 	
++	{
++		struct it_module_header *h = &module->header;
++		h->philigt = sackit_le16(h->philigt);
++		h->ordnum = sackit_le16(h->ordnum);
++		h->insnum = sackit_le16(h->insnum);
++		h->smpnum = sackit_le16(h->smpnum);
++		h->patnum = sackit_le16(h->patnum);
++		h->cwtv = sackit_le16(h->cwtv);
++		h->cmwt = sackit_le16(h->cmwt);
++		h->flags = sackit_le16(h->flags);
++		h->special = sackit_le16(h->special);
++		h->msglgth = sackit_le16(h->msglgth);
++		h->message_offset = sackit_le32(h->message_offset);
++		h->timestamp = sackit_le32(h->timestamp);
++	}
++
+ 	// check magic
+ 	if(memcmp(module->header.magic, "IMPM", 4))
+ 	{
+@@ -205,6 +236,13 @@ it_module_t *sackit_module_load_offs_internal(sackit_reader_t *reader, int fboff
+ 		return NULL;
+ 	}
+ 	
++	for(i = 0; i < module->header.insnum; i++)
++		offset_instruments[i] = sackit_le32(offset_instruments[i]);
++	for(i = 0; i < module->header.smpnum; i++)
++		offset_samples[i] = sackit_le32(offset_samples[i]);
++	for(i = 0; i < module->header.patnum; i++)
++		offset_patterns[i] = sackit_le32(offset_patterns[i]);
++
+ 	// instruments
+ 	for(i = 0; i < module->header.insnum; i++)
+ 	{
+@@ -219,6 +257,10 @@ it_module_t *sackit_module_load_offs_internal(sackit_reader_t *reader, int fboff
+ 		reader->read(reader, module->instruments[i], (void *)(&((it_instrument_t *)0)->evol) - (void *)0);
+ #endif
+ 
++		module->instruments[i]->fadeout = sackit_le16(module->instruments[i]->fadeout);
++		module->instruments[i]->trkvers = sackit_le16(module->instruments[i]->trkvers);
++		module->instruments[i]->midibnk = sackit_le16(module->instruments[i]->midibnk);
++
+ 		for(j = 0; j < 3; j++)
+ 		{
+ 			it_envelope_t *ev = NULL;
+@@ -258,6 +300,13 @@ it_module_t *sackit_module_load_offs_internal(sackit_reader_t *reader, int fboff
+ 		it_sample_t *smp = malloc(sizeof(it_sample_t));
+ 		module->samples[i] = smp;
+ 		reader->read(reader, smp, sizeof(it_sample_t)-sizeof(int16_t *));
++		smp->length = sackit_le32(smp->length);
++		smp->loop_begin = sackit_le32(smp->loop_begin);
++		smp->loop_end = sackit_le32(smp->loop_end);
++		smp->c5speed = sackit_le32(smp->c5speed);
++		smp->susloop_begin = sackit_le32(smp->susloop_begin);
++		smp->susloop_end = sackit_le32(smp->susloop_end);
++		smp->samplepointer = sackit_le32(smp->samplepointer);
+ 		
+ 		smp->data = NULL;
+ 		if(smp->samplepointer != 0 && smp->length != 0 && (smp->flg & IT_SMP_EXISTS))
+@@ -433,6 +482,8 @@ it_module_t *sackit_module_load_offs_internal(sackit_reader_t *reader, int fboff
+ 				if(smp->flg & IT_SMP_16BIT)
+ 				{
+ 					reader->read(reader, smp->data, smp->length*2);
++					for(j = 0; j < (int)smp->length; j++)
++						smp->data[j] = (int16_t)sackit_le16((uint16_t)smp->data[j]);
+ 				} else {
+ 					for(j = 0; j < (int)smp->length; j++)
+ 						smp->data[j] = (reader->getch(reader))<<8;
+@@ -457,6 +508,8 @@ it_module_t *sackit_module_load_offs_internal(sackit_reader_t *reader, int fboff
+ 		reader->seek(reader, fboffs + offset_patterns[i], SEEK_SET);
+ 		module->patterns[i] = malloc(sizeof(it_pattern_t));
+ 		reader->read(reader, module->patterns[i], sizeof(it_pattern_t)-65536);
++		module->patterns[i]->length = sackit_le16(module->patterns[i]->length);
++		module->patterns[i]->rows = sackit_le16(module->patterns[i]->rows);
+ 		reader->read(reader, 8+(uint8_t *)module->patterns[i], module->patterns[i]->length);
+ 	}
+ 

@@ -1,0 +1,24 @@
+Iceball: controls
+=================
+
+Upstream's keys, from clsave/pub/controls.json (change them there, or with
+C on the launcher):
+
+  W A S D            move
+  Space              jump
+  Ctrl               crouch
+  V                  sneak
+  R                  reload
+  1 to 0             choose a tool (spade, block, gun, grenade, ...)
+  Cursor keys        choose the colour for blocks
+  Mouse              look; the buttons use the tool in hand
+  T, Y, U            talk to all, to your team, to your squad
+  Page Up/Down       scroll the chat
+  M                  map
+  , (comma)          team menu
+  . (full stop)      weapon menu
+  Tab                scores
+  Escape             quit
+
+On the launcher: L starts a local game on your own Amiga, a number joins a
+server from the list, C changes your settings, Escape leaves.
