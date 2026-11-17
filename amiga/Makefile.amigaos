@@ -38,7 +38,7 @@ INC     = -Iamiga -Iamiga/sdk -I$(IB)/include -I$(SACKIT) -I$(ENET)/include -I$(
 CFLAGS  = -noixemul $(OPT) $(CPU) -std=gnu99 -w -D__amigaos__ \
           -Wno-error=incompatible-pointer-types -Wno-error=int-conversion $(INC)
 LDFLAGS = -noixemul $(CPU)
-LIBS    = -L$(SDL2KIT)/lib -lSDL2 -lGL -lm -lpthread
+LIBS    = -L$(GFLOUT)/lib -llua51_fpu -L$(SDL2KIT)/lib -lSDL2 -lGL -lm -lpthread
 
 BUILD   = build/amigaos
 OBJDIR  = $(BUILD)/obj
@@ -55,7 +55,7 @@ OBJS    = $(addprefix $(OBJDIR)/ib/,$(addsuffix .o,$(IB_SRC))) \
           $(addprefix $(OBJDIR)/sackit/,$(addsuffix .o,$(SK_SRC))) \
           $(addprefix $(OBJDIR)/enet/,$(addsuffix .o,$(EN_SRC))) \
           $(addprefix $(OBJDIR)/amiga/,$(addsuffix .o,$(AM_SRC))) \
-          $(OBJDIR)/gen/ib_gl_procs.o $(OBJDIR)/gen/lua51_calls_fpu.o $(OBJDIR)/gen/lua51_stub.o
+          $(OBJDIR)/gen/ib_gl_procs.o
 
 all: $(OUT)/$(PROG) package
 
@@ -94,18 +94,6 @@ $(OBJDIR)/gen/ib_gl_procs.c: $(IB)/src/gl/glad.c amiga/gen_gl_procs.py
 	@mkdir -p $(dir $@)
 	$(NM) $(SDL2KIT)/lib/libGL.a > $(OBJDIR)/gen/libGL.nm
 	python3 amiga/gen_gl_procs.py $< $(OBJDIR)/gen/libGL.nm $@
-
-# GFOpenLua's link stub, with its lua_Number calls made right for hard float
-$(OBJDIR)/gen/lua51_calls_fpu.c: $(GFL)/stub/lua51_calls.c amiga/lua_fpu_stub.py
-	@mkdir -p $(dir $@)
-	python3 amiga/lua_fpu_stub.py $< $@
-
-$(OBJDIR)/gen/lua51_calls_fpu.o: $(OBJDIR)/gen/lua51_calls_fpu.c
-	$(CC) $(CFLAGS) -I$(GFL)/src -c -o $@ $<
-
-$(OBJDIR)/gen/lua51_stub.o: $(GFL)/stub/lua51_stub.c
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -I$(GFL)/src -c -o $@ $<
 
 $(OBJDIR)/gen/ib_gl_procs.o: $(OBJDIR)/gen/ib_gl_procs.c
 	$(CC) $(CFLAGS) -c -o $@ $<

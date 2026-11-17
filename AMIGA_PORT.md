@@ -54,9 +54,8 @@ How the port works
   (amiga/gen_gl_procs.py) of the calls glad asks for that libGL has.
 - Lua: lua51.library (GFOpenLua) instead of a compiled-in Lua. That
   library is soft-float and Iceball is built for the FPU, which return a
-  double in different registers, so the link stub is rebuilt with its three
-  number-returning calls taking the library's result from d0/d1
-  (amiga/lua_fpu_stub.py).
+  double in different registers, so Iceball links GFOpenLua's hard-float
+  stub (-llua51_fpu), which moves the library's d0/d1 result into fp0.
 - zlib: z.library (amiga/zlib.h, amiga/ib_zlib.c).
 - Sockets: bsdsocket.library through amiga/ib_bsdsocket.h and ib_amiga.c,
   IPv4 only; with no stack every call fails cleanly and the local game,
@@ -70,9 +69,8 @@ builds Iceball's dedicated server, sackit and the WAV parser for the PC and
 for big-endian m68k Linux, and checks both read every map, model, picture,
 sound and .it file the game ships, and pack numbers, the same (without the
 patch the 68k build differs on 91 of 93 lines). It also tests the Amiga
-helpers: the byte-order and IPv4 helpers on both, the GL table generator,
-and the hard-float Lua stub, whose calls into a soft-float library are run
-under qemu-m68k (the unconverted stub gets them wrong there).
+helpers: the byte-order and IPv4 helpers on both, and the GL table
+generator.
 
 Building
 --------
