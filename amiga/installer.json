@@ -1,0 +1,22 @@
+{
+  "name": "Iceball",
+  "version": "0.2.1-gfos1",
+  "drawer": "Iceball",
+  "program": "Iceball",
+  "cpu": "68040",
+  "fpu": true,
+  "space": 22000000,
+  "modules": [
+    "SDL2.module"
+  ],
+  "libraries": [
+    "lua51.library"
+  ],
+  "keep": [
+    "clsave",
+    "svsave"
+  ],
+  "parent": "Work:Games",
+  "badge": "icons/art/iceball.png",
+  "script": "Install-Iceball"
+}
